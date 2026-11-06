@@ -208,7 +208,7 @@
         
         <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
             <label style="color: #856404; font-weight: bold;">Active Call Control SID (e.g. G1IZSzwN)</label>
-            <input type="text" id="active_tran_id" placeholder="Waiting for live webhook event..." style="font-weight: bold; color: #856404; background: #fff;">
+            <input type="text" id="active_sid" placeholder="Waiting for live webhook SID..." style="font-weight: bold; color: #856404; background: #fff;">
             <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | System Tran ID: -</small>
         </div>
 
@@ -260,16 +260,16 @@
     const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Real-Time Listener: Auto-captures live SID (e.g. G1IZSzwN) from webhook inserts
+    // Real-Time Listener: Automatically populates the input box with the live SID (e.g. G1IZSzwN)
     supabaseClient
         .channel('public:active_calls')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'active_calls' }, payload => {
             if (payload.new && payload.new.sid) {
-                // Automatically populate the Control Panel SID input
-                document.getElementById('active_tran_id').value = payload.new.sid;
+                // EXCLUSIVELY assign the live SID to the control box
+                document.getElementById('active_sid').value = payload.new.sid;
                 document.getElementById('call_status_label').innerText = 
                     `Status: ${payload.new.status} | System Tran ID: ${payload.new.tran_id}`;
-                logResponse("Live Webhook SID Sync", payload.new);
+                logResponse("Live Webhook SID Synced", payload.new);
             }
         })
         .subscribe();
@@ -312,7 +312,7 @@
 
         const payload = {
             msg_type: "agent_call_customer",
-            tran_id: tranId,
+            tran_id: tranId, // Used ONLY for initiating the call request
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -333,7 +333,7 @@
 
         const payload = {
             msg_type: "dial_out",
-            tran_id: tranId,
+            tran_id: tranId, // Used ONLY for initiating the call request
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -346,15 +346,15 @@
     }
 
     async function sendControl(commandName) {
-        const activeSid = document.getElementById('active_tran_id').value.trim();
+        const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
-            alert("No active Call SID found! Waiting for webhook event or please paste the SID.");
+            alert("No active Call SID found! Waiting for webhook event or please paste the live SID.");
             return;
         }
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid, // Uses the live SID (e.g. G1IZSzwN) for call control
+            tran_id: activeSid, // EXCLUSIVELY uses the live SID (e.g. G1IZSzwN) for call controls
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -364,7 +364,7 @@
     }
 
     async function sendDial3rdParty() {
-        const activeSid = document.getElementById('active_tran_id').value.trim();
+        const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
             alert("No active Call SID found!");
             return;
@@ -372,7 +372,7 @@
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid,
+            tran_id: activeSid, // Uses live SID
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -384,7 +384,7 @@
     }
 
     async function sendRefreshControl() {
-        const activeSid = document.getElementById('active_tran_id').value.trim();
+        const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
             alert("No active Call SID found!");
             return;
@@ -392,7 +392,7 @@
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid,
+            tran_id: activeSid, // Uses live SID
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
