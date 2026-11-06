@@ -174,43 +174,41 @@
 
     <!-- Call Initiation -->
     <div class="card">
-        <h2>1. Initiate Call Requests</h2>
+        <h2>1. Click-to-Call Dialer</h2>
         
         <div class="form-group">
-            <label>CLI (Agent / Source Number)</label>
+            <label>Agent Number (CLI)</label>
             <input type="text" id="cli" value="918452080008">
         </div>
 
         <div class="form-group">
-            <label>Customer Number / Digits (digits_1)</label>
-            <input type="text" id="digits_1" value="917039003560">
+            <label>Customer Phone (digits_1)</label>
+            <input type="text" id="digits_1" value="916359115000">
         </div>
 
         <div class="form-group">
-            <label>Customer Name (name_1)</label>
+            <label>Customer Name</label>
             <input type="text" id="name_1" value="Mittal Patel">
         </div>
 
-        <div class="form-group">
+        <div class="form-group" style="display:none;">
             <label>Hold Duration (Seconds)</label>
             <input type="number" id="hold_duration" value="120">
         </div>
 
         <div class="action-group">
-            <button onclick="sendAgentCallCustomer()" class="btn-success">Agent Call Customer (agent_call_customer)</button>
-            <button onclick="sendDialOut()">Dial Out / Call Me (dial_out)</button>
+            <button onclick="sendAgentCallCustomer()" class="btn-success">Initiate Call</button>
         </div>
     </div>
 
-   
-        <!-- In-Call Control Panel -->
+    <!-- In-Call Control Panel -->
     <div class="card">
         <h2>2. Active Call Control Panel</h2>
         
         <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
-            <!-- Updated label clearly indicating SID -->
-            <label style="color: #856404; font-weight: bold;">Active Call Control SID (Live Telephony ID)</label>
-            <input type="text" id="active_sid" placeholder="Waiting for live telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
+            <label style="color: #856404; font-weight: bold;">Active Call Control SID (Telephony Engine ID):</label>
+            <!-- ID is explicitly active_sid now -->
+            <input type="text" id="active_sid" placeholder="Waiting for telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
             <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: -</small>
         </div>
 
@@ -247,7 +245,7 @@
     <!-- Output & Logs -->
     <div class="card full-width">
         <h2>
-            Response Console Log 
+            API Response Log 
             <span id="last_action" class="pill">Idle</span>
             <button onclick="clearLogs()" style="width: auto; float: right; padding: 2px 10px; font-size: 0.75rem;">Clear Console</button>
         </h2>
@@ -259,4 +257,156 @@
 <script>
     // Initialize Supabase Client
     const supabaseUrl = 'https://vwvsfuvdatdtjlrredvu.supabase.co';
-    const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy
+    const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let activeTranId = null;   // CRM transaction ID (e.g. NPbwy7146613)
+    let currentSid = null;     // Live telephony SID (e.g. G1IZ...) used for call control
+    let pollInterval = null;
+
+    function generateTranId() {
+        return 'NP' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
+    }
+
+    function logResponse(action, data) {
+        const logElement = document.getElementById('response_log');
+        document.getElementById('last_action').innerText = action;
+        const timestamp = new Date().toLocaleTimeString();
+        logElement.innerText = `[${timestamp}] --- Action: ${action} ---\n` + JSON.stringify(data, null, 2) + "\n\n" + logElement.innerText;
+    }
+
+    function clearLogs() {
+        document.getElementById('response_log').innerText = '// Console cleared.';
+        document.getElementById('last_action').innerText = 'Idle';
+    }
+
+    async function makeApiRequest(payload, actionName) {
+        const url = document.getElementById('api_url').value;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            logResponse(actionName, data);
+            return data;
+        } catch (error) {
+            logResponse(actionName + " (Error)", { error: error.message });
+        }
+    }
+
+    // Actively poll Supabase to fetch the telephony SID mapped to our CRM tran_id
+    function startSidPolling(tranId) {
+        if (pollInterval) clearInterval(pollInterval);
+        
+        let attempts = 0;
+        pollInterval = setInterval(async () => {
+            attempts++;
+            if (attempts > 30) { // Stop after 30 seconds
+                clearInterval(pollInterval);
+                return;
+            }
+
+            const { data, error } = await supabaseClient
+                .from('active_calls')
+                .select('sid, status')
+                .eq('tran_id', tranId)
+                .single();
+
+            if (data && data.sid) {
+                currentSid = data.sid; // Capture telephony SID
+                document.getElementById('active_sid').value = currentSid; // Populate box with SID!
+                document.getElementById('call_status_label').innerText = 
+                    `Status: ${data.status} | CRM Tran ID: ${tranId}`;
+                console.log("Auto-linked telephony SID:", currentSid);
+                clearInterval(pollInterval); // Stop polling once found
+            }
+        }, 1000); // Check every 1 second
+    }
+
+    async function sendAgentCallCustomer() {
+        activeTranId = generateTranId(); // CRM Generated Tran ID
+        currentSid = null; 
+        document.getElementById('active_sid').value = ''; // Clear box until SID arrives
+        document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${activeTranId}`;
+
+        const payload = {
+            msg_type: "agent_call_customer",
+            tran_id: activeTranId,
+            un: document.getElementById('un').value,
+            pw: document.getElementById('pw').value,
+            svr: document.getElementById('svr').value,
+            sb_tag: document.getElementById('sb_tag').value,
+            routed_name: document.getElementById('routed_name').value,
+            cli: document.getElementById('cli').value,
+            hold_duration: 120,
+            dest_count: 1,
+            digits_1: document.getElementById('digits_1').value,
+            name_1: document.getElementById('name_1').value
+        };
+
+        await makeApiRequest(payload, "agent_call_customer");
+        startSidPolling(activeTranId);
+    }
+
+    async function sendControl(commandName) {
+        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        if (!controlSid) {
+            alert("No telephony SID found yet! Wait a second for the webhook to sync.");
+            return;
+        }
+
+        const payload = {
+            msg_type: "control",
+            tran_id: controlSid, // EXCLUSIVELY uses the live telephony SID for call control
+            un: document.getElementById('un').value,
+            pw: document.getElementById('pw').value,
+            svr: document.getElementById('svr').value,
+            command: commandName
+        };
+        await makeApiRequest(payload, `control [${commandName}]`);
+    }
+
+    async function sendDial3rdParty() {
+        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        if (!controlSid) {
+            alert("No telephony SID found yet!");
+            return;
+        }
+
+        const payload = {
+            msg_type: "control",
+            tran_id: controlSid,
+            un: document.getElementById('un').value,
+            pw: document.getElementById('pw').value,
+            svr: document.getElementById('svr').value,
+            command: "Dial3rdParty",
+            cli: document.getElementById('third_party_cli').value,
+            digits: document.getElementById('third_party_digits').value
+        };
+        await makeApiRequest(payload, "control [Dial3rdParty]");
+    }
+
+    async function sendRefreshControl() {
+        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        if (!controlSid) {
+            alert("No telephony SID found yet!");
+            return;
+        }
+
+        const payload = {
+            msg_type: "control",
+            tran_id: controlSid,
+            un: document.getElementById('un').value,
+            pw: document.getElementById('pw').value,
+            svr: document.getElementById('svr').value,
+            command: "Refresh",
+            bump: 0
+        };
+        await makeApiRequest(payload, "control [Refresh]");
+    }
+</script>
+
+</body>
+</html>
