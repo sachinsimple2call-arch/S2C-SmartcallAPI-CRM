@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simple2Call CTI & CRM Console</title>
-    <!-- Include Supabase JS Client CDN for Real-Time Syncing -->
+    <!-- Include Supabase JS Client CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
@@ -183,7 +183,7 @@
 
         <div class="form-group">
             <label>Customer Number / Digits (digits_1)</label>
-            <input type="text" id="digits_1" value="917756009344">
+            <input type="text" id="digits_1" value="917039003560">
         </div>
 
         <div class="form-group">
@@ -207,9 +207,10 @@
         <h2>2. Active Call Control Panel</h2>
         
         <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
-            <label style="color: #856404; font-weight: bold;">Active Call Control SID (e.g. G1IZSzwN)</label>
+            <label style="color: #856404; font-weight: bold;">Active Call Control SID (e.g. G1IZUV7Q)</label>
+            <!-- THIS FIELD WILL NOW HOLD EXCLUSIVELY THE TELEPHONY SID -->
             <input type="text" id="active_sid" placeholder="Waiting for live webhook SID..." style="font-weight: bold; color: #856404; background: #fff;">
-            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | System Tran ID: -</small>
+            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: -</small>
         </div>
 
         <!-- Hold Controls -->
@@ -260,16 +261,24 @@
     const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    // Real-Time Listener: Automatically populates the input box with the live SID (e.g. G1IZSzwN)
+    let currentTranId = null; // Stores CRM transaction ID (e.g. NP1zlmgx8180)
+
+    // Real-Time Listener: Listens to active_calls table updates
     supabaseClient
         .channel('public:active_calls')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'active_calls' }, payload => {
-            if (payload.new && payload.new.sid) {
-                // EXCLUSIVELY assign the live SID to the control box
-                document.getElementById('active_sid').value = payload.new.sid;
-                document.getElementById('call_status_label').innerText = 
-                    `Status: ${payload.new.status} | System Tran ID: ${payload.new.tran_id}`;
-                logResponse("Live Webhook SID Synced", payload.new);
+            if (payload.new) {
+                // If this event matches our current CRM call or is the latest active call
+                if (!currentTranId || payload.new.tran_id === currentTranId) {
+                    if (payload.new.sid) {
+                        // EXCLUSIVELY assign the telephony SID (e.g. G1IZUV7Q) to the control box
+                        document.getElementById('active_sid').value = payload.new.sid;
+                    }
+                    currentTranId = payload.new.tran_id;
+                    document.getElementById('call_status_label').innerText = 
+                        `Status: ${payload.new.status} | CRM Tran ID: ${payload.new.tran_id}`;
+                    logResponse("Live Webhook Event Synced", payload.new);
+                }
             }
         })
         .subscribe();
@@ -307,12 +316,13 @@
     }
 
     async function sendAgentCallCustomer() {
-        const tranId = generateTranId();
-        document.getElementById('call_status_label').innerText = `Status: INITIATING | System Tran ID: ${tranId}`;
+        currentTranId = generateTranId(); // CRM Generated Tran ID
+        document.getElementById('active_sid').value = ''; // Reset control box until webhook maps the SID
+        document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${currentTranId}`;
 
         const payload = {
             msg_type: "agent_call_customer",
-            tran_id: tranId, // Used ONLY for initiating the call request
+            tran_id: currentTranId, // Sent to API for CRM tracking reference
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -328,12 +338,13 @@
     }
 
     async function sendDialOut() {
-        const tranId = generateTranId();
-        document.getElementById('call_status_label').innerText = `Status: INITIATING | System Tran ID: ${tranId}`;
+        currentTranId = generateTranId(); // CRM Generated Tran ID
+        document.getElementById('active_sid').value = ''; // Reset control box until webhook maps the SID
+        document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${currentTranId}`;
 
         const payload = {
             msg_type: "dial_out",
-            tran_id: tranId, // Used ONLY for initiating the call request
+            tran_id: currentTranId, // Sent to API for CRM tracking reference
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -348,13 +359,13 @@
     async function sendControl(commandName) {
         const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
-            alert("No active Call SID found! Waiting for webhook event or please paste the live SID.");
+            alert("No telephony SID found yet! Wait for the webhook to receive the active call event or paste the SID.");
             return;
         }
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid, // EXCLUSIVELY uses the live SID (e.g. G1IZSzwN) for call controls
+            tran_id: activeSid, // EXCLUSIVELY uses the telephony SID (e.g. G1IZUV7Q) for call control
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -366,13 +377,13 @@
     async function sendDial3rdParty() {
         const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
-            alert("No active Call SID found!");
+            alert("No telephony SID found yet!");
             return;
         }
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid, // Uses live SID
+            tran_id: activeSid, // Uses telephony SID
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
@@ -386,13 +397,13 @@
     async function sendRefreshControl() {
         const activeSid = document.getElementById('active_sid').value.trim();
         if (!activeSid) {
-            alert("No active Call SID found!");
+            alert("No telephony SID found yet!");
             return;
         }
 
         const payload = {
             msg_type: "control",
-            tran_id: activeSid, // Uses live SID
+            tran_id: activeSid, // Uses telephony SID
             un: document.getElementById('un').value,
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
