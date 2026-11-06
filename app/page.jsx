@@ -2,9 +2,10 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
+// Initialize Supabase Client with your keys
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  'https://vwvsfuvdatdtjlrredvu.supabase.co',
+  'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU'
 );
 
 export default function CTIConsole() {
