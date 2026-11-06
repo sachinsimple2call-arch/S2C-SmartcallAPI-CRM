@@ -17,7 +17,7 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // Capture outbound call start and save SID & Tran ID to Supabase
+    // When call rings, store both tran_id and sid in active_calls
     if (msgType === 'outbound_notify') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
@@ -27,15 +27,14 @@ export async function POST(request) {
         status: 'RINGING'
       }, { onConflict: 'tran_id' });
     } 
-    // Handle Call Answer
     else if (msgType === 'result') {
       const answered = parseXMLTag(xmlText, 'answered');
       if (answered === '1') {
         await supabase.from('active_calls').update({ status: 'ANSWERED' }).eq('tran_id', tranId);
       }
     } 
-    // Handle Call Hangup / CDR
     else if (msgType === 'cdr') {
+      // Archive to call_logs table
       await supabase.from('call_logs').insert({
         tran_id: tranId,
         sid: sid,
@@ -51,6 +50,7 @@ export async function POST(request) {
         recording_url: parseXMLTag(xmlText, 'recording_url')
       });
 
+      // Remove from active calls when finished
       if (tranId) {
         await supabase.from('active_calls').delete().eq('tran_id', tranId);
       }
