@@ -12,7 +12,6 @@ function parseXMLTag(xml, tag) {
   return match ? match[1].trim() : null;
 }
 
-// THIS IS THE CRITICAL EXPORT THAT FIXES 405 METHOD NOT ALLOWED
 export async function POST(request) {
   try {
     const xmlText = await request.text();
@@ -62,7 +61,6 @@ export async function POST(request) {
   }
 }
 
-// Optional: Handle GET requests so browser checks don't break
 export async function GET() {
   return NextResponse.json({ status: 'active', message: 'Webhook endpoint is ready for POST requests' });
 }
