@@ -315,7 +315,25 @@
         };
         await makeApiRequest(payload, "agent_call_customer");
     }
+<!-- Include Supabase JS Client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+    const supabaseUrl = 'https://vwvsfuvdatdtjlrredvu.supabase.co';
+    const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
+    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
+    // Listen to live inserts on active_calls table from the webhook
+    supabaseClient
+        .channel('public:active_calls')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'active_calls' }, payload => {
+            if (payload.new && payload.new.sid) {
+                // Automatically extracts and replaces the active ID on your UI screen!
+                document.getElementById('active_tran_id').value = payload.new.sid;
+                console.log("Active Call SID Synced:", payload.new.sid);
+            }
+        })
+        .subscribe();
+</script>
     async function sendDialOut() {
         const tranId = generateTranId();
         document.getElementById('active_tran_id').value = tranId;
