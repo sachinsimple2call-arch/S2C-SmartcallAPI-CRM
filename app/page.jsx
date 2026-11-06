@@ -8,31 +8,25 @@ const supabase = createClient(
 );
 
 export default function CTIConsole() {
-  // Credentials & Config
   const [apiUrl, setApiUrl] = useState('https://conference.simple2call.in/ab_api.php');
   const [un, setUn] = useState('sachin_admin');
   const [pw, setPw] = useState('Ashu@7979');
   const [svr, setSvr] = useState('conference.simple2call.in');
   const [sbTag, setSbTag] = useState('TestTag');
   
-  // Agent & Customer inputs
   const [cli, setCli] = useState('918452080008');
   const [customerPhone, setCustomerPhone] = useState('916359115000');
   const [customerName, setCustomerName] = useState('Mittal Patel');
   
-  // Active Call State
   const [activeTranId, setActiveTranId] = useState('');
   const [callStatus, setCallStatus] = useState('IDLE');
   
-  // 3rd Party inputs
   const [thirdPartyCli, setThirdPartyCli] = useState('13216930000');
   const [thirdPartyDigits, setThirdPartyDigits] = useState('19084444455');
 
-  // Logs & History
-  const [logs, setLogs] = useState([]);
+  const [logs, setLogs] = useState('');
   const [callHistory, setCallHistory] = useState([]);
 
-  // Fetch recent call logs from Supabase on load
   useEffect(() => {
     fetchCallHistory();
     const subscription = supabase
@@ -59,7 +53,6 @@ export default function CTIConsole() {
     setLogs(prev => `[${time}] ${action}\n` + JSON.stringify(data, null, 2) + "\n\n" + prev);
   };
 
-  // 1. Initiate Outbound Call
   async function handleAgentCallCustomer() {
     const tranId = generateTranId();
     setActiveTranId(tranId);
@@ -92,7 +85,6 @@ export default function CTIConsole() {
     }
   }
 
-  // 2. Control Command API (Hold, Unhold, 3Way, Disconnect3rdParty, Transfer, Hangup)
   async function sendControlCommand(commandName) {
     if (!activeTranId) {
       alert("No active Transaction ID (tran_id) found!");
@@ -106,7 +98,6 @@ export default function CTIConsole() {
       command: commandName
     };
 
-    // Special payload handling for Dial3rdParty
     if (commandName === 'Dial3rdParty') {
       payload.cli = thirdPartyCli;
       payload.digits = thirdPartyDigits;
@@ -134,7 +125,6 @@ export default function CTIConsole() {
     <div style={{ padding: '20px', fontFamily: 'sans-serif', background: '#f4f6f9', minHeight: '100vh' }}>
       <h1>Simple2Call CTI & CRM Web Console</h1>
       
-      {/* Top Configuration Grid */}
       <div style={{ background: '#fff', padding: '15px', borderRadius: '8px', marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
         <div><label>API URL</label><input value={apiUrl} onChange={e => setApiUrl(e.target.value)} style={{width:'100%'}} /></div>
         <div><label>Username</label><input value={un} onChange={e => setUn(e.target.value)} style={{width:'100%'}} /></div>
@@ -144,8 +134,6 @@ export default function CTIConsole() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        
-        {/* Left Column: Dialing & Active Control */}
         <div>
           <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
             <h2>1. Click-to-Call Dialer</h2>
@@ -184,7 +172,6 @@ export default function CTIConsole() {
           </div>
         </div>
 
-        {/* Right Column: Response Console & CDR Logs */}
         <div>
           <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
             <h2>API Response Log</h2>
@@ -217,7 +204,6 @@ export default function CTIConsole() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );
