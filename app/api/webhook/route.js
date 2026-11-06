@@ -1,25 +1,13 @@
 import { NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabaseClient'; // Adjusted relative path
+import { supabase } from '../../../lib/supabaseClient';
 
 export async function POST(request) {
   try {
-    const contentType = request.headers.get('content-type') || '';
-    let bodyData = {};
-
-    if (contentType.includes('application/json')) {
-      bodyData = await request.json();
-    } else {
-      // Handle form-urlencoded or XML payload text conversion
-      const text = await request.text();
-      // Basic fallback parser if gateway sends XML/Form strings
-      bodyData = { raw_payload: text };
-    }
-
+    const bodyData = await request.json().catch(() => ({}));
     const msgType = bodyData.msg_type || 'unknown';
     const tranId = bodyData.tran_id;
     const sid = bodyData.sid;
 
-    // Handle different SmartCall event types
     if (msgType === 'outbound_notify') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
@@ -37,7 +25,6 @@ export async function POST(request) {
       }).eq('tran_id', tranId);
     } 
     else if (msgType === 'cdr') {
-      // Insert into call logs and remove from active calls
       await supabase.from('call_logs').insert({
         tran_id: tranId,
         sid: sid,
