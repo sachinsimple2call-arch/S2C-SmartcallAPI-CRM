@@ -12,6 +12,7 @@ function parseXMLTag(xml, tag) {
   return match ? match[1].trim() : null;
 }
 
+// CRITICAL: Explicit POST method export for Vercel App Router
 export async function POST(request) {
   try {
     const xmlText = await request.text();
@@ -23,7 +24,7 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // 1. Handle outbound call notification or ringing state
+    // 1. Handle outbound call notification or result/ringing state
     if (msgType === 'outbound_notify' || msgType === 'result') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
@@ -61,6 +62,7 @@ export async function POST(request) {
   }
 }
 
+// Optional GET handler so browser/health checks return 200 instead of 405
 export async function GET() {
-  return NextResponse.json({ status: 'active', message: 'Webhook endpoint is ready for POST requests' });
+  return NextResponse.json({ status: 'active', message: 'Webhook endpoint is online and accepting POST requests' });
 }
