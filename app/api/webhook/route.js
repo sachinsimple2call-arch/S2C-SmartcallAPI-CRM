@@ -8,6 +8,7 @@ export async function POST(request) {
     const tranId = bodyData.tran_id;
     const sid = bodyData.sid;
 
+    // 1. Handle Outbound Call Notification
     if (msgType === 'outbound_notify') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
@@ -18,12 +19,14 @@ export async function POST(request) {
         start_time: new Date()
       }, { onConflict: 'tran_id' });
     } 
+    // 2. Handle Call Answer Result
     else if (msgType === 'result' && bodyData.answered == '1') {
       await supabase.from('active_calls').update({
         status: 'ANSWERED',
         answer_time: new Date()
       }).eq('tran_id', tranId);
     } 
+    // 3. Handle Call Completion (CDR Log & Recordings)
     else if (msgType === 'cdr') {
       await supabase.from('call_logs').insert({
         tran_id: tranId,
@@ -42,6 +45,7 @@ export async function POST(request) {
         recording_url: bodyData.recording_url
       });
 
+      // Clear from active calls table once completed
       if (tranId) {
         await supabase.from('active_calls').delete().eq('tran_id', tranId);
       }
