@@ -282,7 +282,45 @@
             }
         })
         .subscribe();
+async function sendAgentCallCustomer() {
+        currentTranId = generateTranId(); // CRM Generated Tran ID (e.g. NP1fsiw16673)
+        document.getElementById('active_sid').value = ''; 
+        document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${currentTranId}`;
 
+        const payload = {
+            msg_type: "agent_call_customer",
+            tran_id: currentTranId,
+            un: document.getElementById('un').value,
+            pw: document.getElementById('pw').value,
+            svr: document.getElementById('svr').value,
+            sb_tag: document.getElementById('sb_tag').value,
+            routed_name: document.getElementById('routed_name').value,
+            cli: document.getElementById('cli').value,
+            hold_duration: parseInt(document.getElementById('hold_duration').value),
+            dest_count: 1,
+            digits_1: document.getElementById('digits_1').value,
+            name_1: document.getElementById('name_1').value
+        };
+
+        // 1. Send API Request to SmartCall
+        await makeApiRequest(payload, "agent_call_customer");
+
+        // 2. Fallback check: Poll Supabase after 2.5 seconds to auto-fetch the SID if webhook already arrived
+        setTimeout(async () => {
+            const { data, error } = await supabaseClient
+                .from('active_calls')
+                .select('sid, status')
+                .eq('tran_id', currentTranId)
+                .single();
+
+            if (data && data.sid && !document.getElementById('active_sid').value) {
+                document.getElementById('active_sid').value = data.sid;
+                document.getElementById('call_status_label').innerText = 
+                    `Status: ${data.status} | CRM Tran ID: ${currentTranId}`;
+                console.log("Auto-fetched SID via fallback query:", data.sid);
+            }
+        }, 2500);
+    }
     function generateTranId() {
         return 'NP' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
     }
