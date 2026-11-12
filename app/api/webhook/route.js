@@ -25,16 +25,26 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // 1. Handle live call notifications and results
-    if (msgType === 'agent_call_customer.ack' || msgType === 'outbound_notify' || msgType === 'result') {
-      const { error } = await supabase.from('active_calls').upsert({
-        tran_id: tranId,
-        sid: sid || null,
-        access_number: accessNumber || null,
-        status: msgType === 'result' ? 'ANSWERED' : 'RINGING'
-      }, { onConflict: 'tran_id' });
+    // 1. Handle all live call states (ringing, connected, results, acks)
+    if (
+      msgType === 'outbound_notify' || 
+      msgType === 'result' || 
+      msgType === 'agent_call_customer.ack' || 
+      msgType === 'ringing' || 
+      msgType === 'answer'
+    ) {
+      if (tranId) {
+        const { error } = await supabase.from('active_calls').upsert({
+          tran_id: tranId,
+          sid: sid || null,
+          access_number: accessNumber || null,
+          status: msgType === 'result' || msgType === 'answer' ? 'ANSWERED' : 'RINGING'
+        }, { onConflict: 'tran_id' });
 
-      if (error) console.error('Supabase active_calls upsert error:', error);
+        if (error) {
+          console.error('Supabase active_calls upsert error:', error);
+        }
+      }
     } 
     // 2. Handle CDR (Call Completion & Logging)
     else if (msgType === 'cdr' || msgType === 'hangup') {
@@ -53,9 +63,10 @@ export async function POST(request) {
         recording_url: parseXMLTag(xmlText, 'recording_url')
       });
 
-      if (error) console.error('Supabase call_logs insert error:', error);
+      if (error) {
+        console.error('Supabase call_logs insert error:', error);
+      }
 
-      // Clean up active call tracker
       if (tranId) {
         await supabase.from('active_calls').delete().eq('tran_id', tranId);
       }
