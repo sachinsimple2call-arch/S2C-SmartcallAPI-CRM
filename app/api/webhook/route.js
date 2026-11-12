@@ -25,7 +25,7 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // 1. Handle all live call states (ringing, connected, results, acks)
+    // Handle all active call progression states and test results
     if (
       msgType === 'outbound_notify' || 
       msgType === 'result' || 
@@ -34,7 +34,7 @@ export async function POST(request) {
       msgType === 'answer'
     ) {
       if (tranId) {
-        const { error } = await supabase.from('active_calls').upsert({
+        const { data, error } = await supabase.from('active_calls').upsert({
           tran_id: tranId,
           sid: sid || null,
           access_number: accessNumber || null,
@@ -42,11 +42,11 @@ export async function POST(request) {
         }, { onConflict: 'tran_id' });
 
         if (error) {
-          console.error('Supabase active_calls upsert error:', error);
+          console.error('Supabase active_calls upsert failed:', error);
+          return NextResponse.json({ status: 'db_error', details: error.message }, { status: 500 });
         }
       }
     } 
-    // 2. Handle CDR (Call Completion & Logging)
     else if (msgType === 'cdr' || msgType === 'hangup') {
       const { error } = await supabase.from('call_logs').insert({
         tran_id: tranId,
@@ -64,7 +64,7 @@ export async function POST(request) {
       });
 
       if (error) {
-        console.error('Supabase call_logs insert error:', error);
+        console.error('Supabase call_logs insert failed:', error);
       }
 
       if (tranId) {
