@@ -17,18 +17,23 @@ export async function POST(request) {
     const msgType = parseXMLTag(xmlText, 'msg_type');
     const tranId = parseXMLTag(xmlText, 'tran_id');
     const sid = parseXMLTag(xmlText, 'sid');
+    const accessNumber = parseXMLTag(xmlText, 'access_number');
 
     if (!msgType) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    if (msgType === 'outbound_notify' || msgType === 'result') {
+    // 1. Handle outbound call notification, acknowledgement, or result state
+    if (msgType === 'agent_call_customer.ack' || msgType === 'outbound_notify' || msgType === 'result') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
-        sid: sid,
+        sid: sid || null,
+        access_number: accessNumber || null,
         status: msgType === 'result' ? 'ANSWERED' : 'RINGING'
       }, { onConflict: 'tran_id' });
-    } else if (msgType === 'cdr') {
+    } 
+    // 2. Handle CDR (Call Completion & Logging)
+    else if (msgType === 'cdr') {
       await supabase.from('call_logs').insert({
         tran_id: tranId,
         sid: sid,
