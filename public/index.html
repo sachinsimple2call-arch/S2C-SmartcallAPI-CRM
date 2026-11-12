@@ -262,6 +262,7 @@
     let activeTranId = null;   // CRM transaction ID
     let currentSid = null;     // Live telephony SID used for call control
     let pollInterval = null;
+    let realtimeSubscription = null;
 
     function generateTranId() {
         return 'NP' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
@@ -271,7 +272,10 @@
         const logElement = document.getElementById('response_log');
         document.getElementById('last_action').innerText = action;
         const timestamp = new Date().toLocaleTimeString();
-        logElement.innerText = `[${timestamp}] --- Action: ${action} ---\n` + JSON.stringify(data, null, 2) + "\n\n" + logElement.innerText;
+        logElement.innerText = `[${timestamp}] --- Action: ${action} ---
+` + JSON.stringify(data, null, 2) + "
+
+" + logElement.innerText;
     }
 
     function clearLogs() {
@@ -295,14 +299,46 @@
         }
     }
 
-    // Actively poll Supabase to fetch the telephony SID mapped to our CRM tran_id
-    function startSidPolling(tranId) {
+    function applyActiveSid(sid, status, tranId) {
+        if (!sid) return;
+        currentSid = sid;
+        document.getElementById('active_sid').value = currentSid;
+        document.getElementById('call_status_label').innerText = 
+            `Status: ${status || 'ACTIVE'} | CRM Tran ID: ${tranId}`;
+        logResponse("Supabase SID Linked", { tran_id: tranId, sid: currentSid, status: status });
+    }
+
+    // Listen to both Supabase Realtime & Polling to guarantee immediate SID capture
+    function startSidTracking(tranId) {
         if (pollInterval) clearInterval(pollInterval);
-        
+        if (realtimeSubscription) {
+            supabaseClient.removeChannel(realtimeSubscription);
+        }
+
+        // 1. Realtime subscription on active_calls
+        realtimeSubscription = supabaseClient
+            .channel('active_calls_' + tranId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'active_calls', filter: `tran_id=eq.${tranId}` },
+                (payload) => {
+                    const row = payload.new;
+                    if (row && row.sid) {
+                        applyActiveSid(row.sid, row.status, tranId);
+                        clearInterval(pollInterval);
+                    } else if (row && row.status) {
+                        document.getElementById('call_status_label').innerText = 
+                            `Status: ${row.status} | CRM Tran ID: ${tranId}`;
+                    }
+                }
+            )
+            .subscribe();
+
+        // 2. Fallback polling on active_calls
         let attempts = 0;
         pollInterval = setInterval(async () => {
             attempts++;
-            if (attempts > 30) {
+            if (attempts > 45) {
                 clearInterval(pollInterval);
                 return;
             }
@@ -311,18 +347,24 @@
                 .from('active_calls')
                 .select('sid, status')
                 .eq('tran_id', tranId)
-                .single();
+                .maybeSingle();
 
-            if (data && data.sid) {
-                currentSid = data.sid; 
-                document.getElementById('active_sid').value = currentSid; 
-                document.getElementById('call_status_label').innerText = 
-                    `Status: ${data.status} | CRM Tran ID: ${tranId}`;
-                console.log("Auto-linked telephony SID:", currentSid);
-                clearInterval(pollInterval);
+            if (data) {
+                if (data.sid) {
+                    applyActiveSid(data.sid, data.status, tranId);
+                    clearInterval(pollInterval);
+                } else if (data.status) {
+                    document.getElementById('call_status_label').innerText = 
+                        `Status: ${data.status} | CRM Tran ID: ${tranId}`;
+                }
             }
         }, 1000);
     }
+
+    // Sync manual edits to active_sid input box
+    document.getElementById('active_sid').addEventListener('input', (e) => {
+        currentSid = e.target.value.trim() || null;
+    });
 
     async function sendAgentCallCustomer() {
         activeTranId = generateTranId();
@@ -339,20 +381,41 @@
             sb_tag: document.getElementById('sb_tag').value,
             routed_name: document.getElementById('routed_name').value,
             cli: document.getElementById('cli').value,
-            hold_duration: 120,
+            hold_duration: parseInt(document.getElementById('hold_duration').value, 10) || 120,
             dest_count: 1,
             digits_1: document.getElementById('digits_1').value,
             name_1: document.getElementById('name_1').value
         };
 
-        await makeApiRequest(payload, "agent_call_customer");
-        startSidPolling(activeTranId);
+        const res = await makeApiRequest(payload, "agent_call_customer");
+        if (res && res.sid) {
+            applyActiveSid(res.sid, res.status || 'CONNECTED', activeTranId);
+        }
+        startSidTracking(activeTranId);
+    }
+
+    async function getResolvedSid() {
+        let controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        
+        // On-demand Supabase lookup if SID hasn't populated yet
+        if (!controlSid && activeTranId) {
+            const { data } = await supabaseClient
+                .from('active_calls')
+                .select('sid, status')
+                .eq('tran_id', activeTranId)
+                .maybeSingle();
+            if (data && data.sid) {
+                applyActiveSid(data.sid, data.status, activeTranId);
+                controlSid = data.sid;
+            }
+        }
+        return controlSid;
     }
 
     async function sendControl(commandName) {
-        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        const controlSid = await getResolvedSid();
         if (!controlSid) {
-            alert("No telephony SID found yet! Wait a second for the webhook to sync.");
+            alert("No telephony SID found yet in Supabase active_calls! Wait a second for the webhook to sync.");
             return;
         }
 
@@ -368,9 +431,9 @@
     }
 
     async function sendDial3rdParty() {
-        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        const controlSid = await getResolvedSid();
         if (!controlSid) {
-            alert("No telephony SID found yet!");
+            alert("No telephony SID found yet in Supabase active_calls!");
             return;
         }
 
@@ -388,9 +451,9 @@
     }
 
     async function sendRefreshControl() {
-        const controlSid = currentSid || document.getElementById('active_sid').value.trim();
+        const controlSid = await getResolvedSid();
         if (!controlSid) {
-            alert("No telephony SID found yet!");
+            alert("No telephony SID found yet in Supabase active_calls!");
             return;
         }
 
