@@ -1,478 +1,68 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple2Call CTI & CRM Console</title>
-    <!-- Include Supabase JS Client CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        :root {
-            --bg-color: #f4f6f9;
-            --card-bg: #ffffff;
-            --primary: #0056b3;
-            --primary-hover: #004085;
-            --success: #28a745;
-            --danger: #dc3545;
-            --warning: #ffc107;
-            --border: #ced4da;
-        }
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-            background-color: var(--bg-color);
-            margin: 0;
-            padding: 20px;
-            color: #333;
-        }
+// Initialize Supabase Server Client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vwvsfuvdatdtjlrredvu.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU'
+);
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
+function parseXMLTag(xml, tag) {
+  const match = xml.match(new RegExp(`<${tag}>(.*?)<\/${tag}>`, 's'));
+  return match ? match[1].trim() : null;
+}
 
-        .full-width {
-            grid-column: span 2;
-        }
+// CRITICAL: Explicit POST method export for Vercel App Router
+export async function POST(request) {
+  try {
+    const xmlText = await request.text();
+    const msgType = parseXMLTag(xmlText, 'msg_type');
+    const tranId = parseXMLTag(xmlText, 'tran_id');
+    const sid = parseXMLTag(xmlText, 'sid');
 
-        .card {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            margin-bottom: 20px;
-        }
-
-        h2 {
-            margin-top: 0;
-            font-size: 1.25rem;
-            color: var(--primary);
-            border-bottom: 2px solid #e9ecef;
-            padding-bottom: 8px;
-        }
-
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .grid-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        label {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 4px;
-            color: #495057;
-        }
-
-        input[type="text"], input[type="password"], input[type="number"], select {
-            width: 100%;
-            padding: 8px 10px;
-            border: 1px solid var(--border);
-            border-radius: 4px;
-            box-sizing: border-box;
-            font-size: 0.9rem;
-        }
-
-        button {
-            width: 100%;
-            padding: 10px;
-            border: none;
-            border-radius: 4px;
-            background-color: var(--primary);
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            font-size: 0.9rem;
-        }
-
-        button:hover { background-color: var(--primary-hover); }
-        button.btn-danger { background-color: var(--danger); }
-        button.btn-danger:hover { background-color: #bd2130; }
-        button.btn-warning { background-color: var(--warning); color: #212529; }
-        button.btn-warning:hover { background-color: #e0a800; }
-        button.btn-success { background-color: var(--success); }
-        button.btn-success:hover { background-color: #218838; }
-
-        .action-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        pre {
-            background: #1e1e1e;
-            color: #00ff66;
-            padding: 15px;
-            border-radius: 6px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 0.85rem;
-            margin: 0;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
-        .pill {
-            background: #e2e8f0;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-
-<div class="container">
-
-    <!-- Global API Configuration -->
-    <div class="card full-width">
-        <h2>Global API & Account Configuration</h2>
-        <div class="grid-3">
-            <div class="form-group">
-                <label>API Endpoint URL</label>
-                <input type="text" id="api_url" value="https://conference.simple2call.in/ab_api.php">
-            </div>
-            <div class="form-group">
-                <label>Username (un)</label>
-                <input type="text" id="un" value="sachin_admin">
-            </div>
-            <div class="form-group">
-                <label>Password (pw)</label>
-                <input type="password" id="pw" value="Ashu@7979">
-            </div>
-            <div class="form-group">
-                <label>Server (svr)</label>
-                <input type="text" id="svr" value="conference.simple2call.in">
-            </div>
-            <div class="form-group">
-                <label>Sub-Tag (sb_tag)</label>
-                <input type="text" id="sb_tag" value="TestTag">
-            </div>
-            <div class="form-group">
-                <label>Routed Name</label>
-                <input type="text" id="routed_name" value="NeerajDemo">
-            </div>
-        </div>
-    </div>
-
-    <!-- Call Initiation -->
-    <div class="card">
-        <h2>1. Click-to-Call Dialer</h2>
-        
-        <div class="form-group">
-            <label>Agent Number (CLI)</label>
-            <input type="text" id="cli" value="918452080008">
-        </div>
-
-        <div class="form-group">
-            <label>Customer Phone (digits_1)</label>
-            <input type="text" id="digits_1" value="916359115000">
-        </div>
-
-        <div class="form-group">
-            <label>Customer Name</label>
-            <input type="text" id="name_1" value="Mittal Patel">
-        </div>
-
-        <div class="form-group" style="display:none;">
-            <label>Hold Duration (Seconds)</label>
-            <input type="number" id="hold_duration" value="120">
-        </div>
-
-        <div class="action-group">
-            <button onclick="sendAgentCallCustomer()" class="btn-success">Initiate Call</button>
-        </div>
-    </div>
-
-    <!-- In-Call Control Panel -->
-    <div class="card">
-        <h2>2. Active Call Control Panel</h2>
-        
-        <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
-            <label style="color: #856404; font-weight: bold;">Active Call Control SID (Telephony Engine ID):</label>
-            <input type="text" id="active_sid" placeholder="Waiting for telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
-            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: -</small>
-        </div>
-
-        <!-- Hold Controls -->
-        <label>Hold Controls</label>
-        <div class="grid-2" style="margin-bottom: 15px;">
-            <button class="btn-warning" onclick="sendControl('HoldOn')">Hold On</button>
-            <button class="btn-success" onclick="sendControl('HoldOff')">Hold Off</button>
-        </div>
-
-        <!-- 3rd Party Controls -->
-        <label>3rd Party / Transfer Settings</label>
-        <div class="grid-2" style="margin-bottom: 8px;">
-            <input type="text" id="third_party_cli" placeholder="3rd Party CLI" value="13216930000">
-            <input type="text" id="third_party_digits" placeholder="3rd Party Digits" value="19084444455">
-        </div>
-        
-        <div class="grid-2" style="margin-bottom: 15px;">
-            <button onclick="sendDial3rdParty()">Dial 3rd Party</button>
-            <button class="btn-success" onclick="sendControl('3Way')">Bridge 3-Way</button>
-            <button class="btn-warning" onclick="sendControl('Disconnect3rdParty')">Drop 3rd Party</button>
-            <button onclick="sendControl('Transfer')">Transfer & Exit</button>
-        </div>
-
-        <!-- Status & Terminate -->
-        <label>Status & Call Release</label>
-        <div class="grid-3">
-            <button onclick="sendControl('Status')">Get Status</button>
-            <button onclick="sendRefreshControl()">Refresh Logs</button>
-            <button class="btn-danger" onclick="sendControl('Hangup')">Hangup Call</button>
-        </div>
-    </div>
-
-    <!-- Output & Logs -->
-    <div class="card full-width">
-        <h2>
-            API Response Log 
-            <span id="last_action" class="pill">Idle</span>
-            <button onclick="clearLogs()" style="width: auto; float: right; padding: 2px 10px; font-size: 0.75rem;">Clear Console</button>
-        </h2>
-        <pre id="response_log">// Webhook events, live SIDs, and API responses will appear here in real-time...</pre>
-    </div>
-
-</div>
-
-<script>
-    // Initialize Supabase Client
-    const supabaseUrl = 'https://vwvsfuvdatdtjlrredvu.supabase.co';
-    const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
-    const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
-
-    let activeTranId = null;   // CRM transaction ID
-    let currentSid = null;     // Live telephony SID used for call control
-    let pollInterval = null;
-    let realtimeSubscription = null;
-
-    function generateTranId() {
-        return 'NP' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
+    if (!msgType) {
+      return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    function logResponse(action, data) {
-        const logElement = document.getElementById('response_log');
-        document.getElementById('last_action').innerText = action;
-        const timestamp = new Date().toLocaleTimeString();
-        const displayData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
-        logElement.innerText = `[${timestamp}] --- Action: ${action} ---\n${displayData}\n\n${logElement.innerText}`;
+    // 1. Handle outbound call notification or result/ringing state
+    if (msgType === 'outbound_notify' || msgType === 'result') {
+      await supabase.from('active_calls').upsert({
+        tran_id: tranId,
+        sid: sid,
+        status: msgType === 'result' ? 'ANSWERED' : 'RINGING'
+      }, { onConflict: 'tran_id' });
+    } 
+    // 2. Handle CDR (Call Completion & Logging)
+    else if (msgType === 'cdr') {
+      await supabase.from('call_logs').insert({
+        tran_id: tranId,
+        sid: sid,
+        start_time: parseXMLTag(xmlText, 'start_time'),
+        answer_time: parseXMLTag(xmlText, 'answer_time'),
+        end_time: parseXMLTag(xmlText, 'end_time'),
+        cli: parseXMLTag(xmlText, 'cli'),
+        customer_number: parseXMLTag(xmlText, 'customer_number'),
+        status: parseXMLTag(xmlText, 'status'),
+        duration: parseInt(parseXMLTag(xmlText, 'duration') || '0', 10),
+        charge: parseFloat(parseXMLTag(xmlText, 'charge') || '0.00'),
+        hangup_reason: parseXMLTag(xmlText, 'hangup'),
+        recording_url: parseXMLTag(xmlText, 'recording_url')
+      });
+
+      // Clear from active_calls once completed
+      if (tranId) {
+        await supabase.from('active_calls').delete().eq('tran_id', tranId);
+      }
     }
 
-    function clearLogs() {
-        document.getElementById('response_log').innerText = '// Console cleared.';
-        document.getElementById('last_action').innerText = 'Idle';
-    }
+    return NextResponse.json({ status: 'success', received_msg_type: msgType });
+  } catch (error) {
+    console.error('Webhook Error:', error);
+    return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
+  }
+}
 
-    async function makeApiRequest(payload, actionName) {
-        const url = document.getElementById('api_url').value;
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const textResponse = await response.text();
-            let data;
-            try {
-                data = JSON.parse(textResponse);
-            } catch (e) {
-                data = { raw_response: textResponse };
-            }
-            logResponse(actionName, data);
-            return data;
-        } catch (error) {
-            logResponse(actionName + " (Error)", { error: error.message });
-        }
-    }
-
-    function applyActiveSid(sid, status, tranId) {
-        if (!sid) return;
-        currentSid = sid;
-        document.getElementById('active_sid').value = currentSid;
-        document.getElementById('call_status_label').innerText = 
-            `Status: ${status || 'ACTIVE'} | CRM Tran ID: ${tranId}`;
-        logResponse("Supabase SID Linked", { tran_id: tranId, sid: currentSid, status: status });
-    }
-
-    // Listen to both Supabase Realtime & Polling to guarantee immediate SID capture
-    function startSidTracking(tranId) {
-        if (pollInterval) clearInterval(pollInterval);
-        if (realtimeSubscription) {
-            supabaseClient.removeChannel(realtimeSubscription);
-        }
-
-        // 1. Realtime subscription on active_calls
-        realtimeSubscription = supabaseClient
-            .channel('active_calls_' + tranId)
-            .on(
-                'postgres_changes',
-                { event: '*', schema: 'public', table: 'active_calls', filter: `tran_id=eq.${tranId}` },
-                (payload) => {
-                    const row = payload.new;
-                    if (row && row.sid) {
-                        applyActiveSid(row.sid, row.status, tranId);
-                        clearInterval(pollInterval);
-                    } else if (row && row.status) {
-                        document.getElementById('call_status_label').innerText = 
-                            `Status: ${row.status} | CRM Tran ID: ${tranId}`;
-                    }
-                }
-            )
-            .subscribe();
-
-        // 2. Fallback polling on active_calls
-        let attempts = 0;
-        pollInterval = setInterval(async () => {
-            attempts++;
-            if (attempts > 45) {
-                clearInterval(pollInterval);
-                return;
-            }
-
-            const { data, error } = await supabaseClient
-                .from('active_calls')
-                .select('sid, status')
-                .eq('tran_id', tranId)
-                .maybeSingle();
-
-            if (data) {
-                if (data.sid) {
-                    applyActiveSid(data.sid, data.status, tranId);
-                    clearInterval(pollInterval);
-                } else if (data.status) {
-                    document.getElementById('call_status_label').innerText = 
-                        `Status: ${data.status} | CRM Tran ID: ${tranId}`;
-                }
-            }
-        }, 1000);
-    }
-
-    // Sync manual edits to active_sid input box
-    document.getElementById('active_sid').addEventListener('input', (e) => {
-        currentSid = e.target.value.trim() || null;
-    });
-
-    async function sendAgentCallCustomer() {
-        activeTranId = generateTranId();
-        currentSid = null; 
-        document.getElementById('active_sid').value = ''; 
-        document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${activeTranId}`;
-
-        const payload = {
-            msg_type: "agent_call_customer",
-            tran_id: activeTranId,
-            un: document.getElementById('un').value,
-            pw: document.getElementById('pw').value,
-            svr: document.getElementById('svr').value,
-            sb_tag: document.getElementById('sb_tag').value,
-            routed_name: document.getElementById('routed_name').value,
-            cli: document.getElementById('cli').value,
-            hold_duration: parseInt(document.getElementById('hold_duration').value, 10) || 120,
-            dest_count: 1,
-            digits_1: document.getElementById('digits_1').value,
-            name_1: document.getElementById('name_1').value
-        };
-
-        const res = await makeApiRequest(payload, "agent_call_customer");
-        if (res && res.sid) {
-            applyActiveSid(res.sid, res.status || 'CONNECTED', activeTranId);
-        }
-        startSidTracking(activeTranId);
-    }
-
-    async function getResolvedSid() {
-        let controlSid = currentSid || document.getElementById('active_sid').value.trim();
-        
-        // On-demand Supabase lookup if SID hasn't populated yet
-        if (!controlSid && activeTranId) {
-            const { data } = await supabaseClient
-                .from('active_calls')
-                .select('sid, status')
-                .eq('tran_id', activeTranId)
-                .maybeSingle();
-            if (data && data.sid) {
-                applyActiveSid(data.sid, data.status, activeTranId);
-                controlSid = data.sid;
-            }
-        }
-        return controlSid;
-    }
-
-    async function sendControl(commandName) {
-        const controlSid = await getResolvedSid();
-        if (!controlSid) {
-            alert("No telephony SID found yet in Supabase active_calls! Wait a second for the webhook to sync.");
-            return;
-        }
-
-        const payload = {
-            msg_type: "control",
-            tran_id: controlSid,
-            un: document.getElementById('un').value,
-            pw: document.getElementById('pw').value,
-            svr: document.getElementById('svr').value,
-            command: commandName
-        };
-        await makeApiRequest(payload, `control [${commandName}]`);
-    }
-
-    async function sendDial3rdParty() {
-        const controlSid = await getResolvedSid();
-        if (!controlSid) {
-            alert("No telephony SID found yet in Supabase active_calls!");
-            return;
-        }
-
-        const payload = {
-            msg_type: "control",
-            tran_id: controlSid,
-            un: document.getElementById('un').value,
-            pw: document.getElementById('pw').value,
-            svr: document.getElementById('svr').value,
-            command: "Dial3rdParty",
-            cli: document.getElementById('third_party_cli').value,
-            digits: document.getElementById('third_party_digits').value
-        };
-        await makeApiRequest(payload, "control [Dial3rdParty]");
-    }
-
-    async function sendRefreshControl() {
-        const controlSid = await getResolvedSid();
-        if (!controlSid) {
-            alert("No telephony SID found yet in Supabase active_calls!");
-            return;
-        }
-
-        const payload = {
-            msg_type: "control",
-            tran_id: controlSid,
-            un: document.getElementById('un').value,
-            pw: document.getElementById('pw').value,
-            svr: document.getElementById('svr').value,
-            command: "Refresh",
-            bump: 0
-        };
-        await makeApiRequest(payload, "control [Refresh]");
-    }
-</script>
-
-</body>
-</html>
+// Optional GET handler so browser/health checks return 200 instead of 405
+export async function GET() {
+  return NextResponse.json({ status: 'active', message: 'Webhook endpoint is online and accepting POST requests' });
+}
