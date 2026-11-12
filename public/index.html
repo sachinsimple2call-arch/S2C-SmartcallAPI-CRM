@@ -272,10 +272,8 @@
         const logElement = document.getElementById('response_log');
         document.getElementById('last_action').innerText = action;
         const timestamp = new Date().toLocaleTimeString();
-        logElement.innerText = `[${timestamp}] --- Action: ${action} ---
-` + JSON.stringify(data, null, 2) + "
-
-" + logElement.innerText;
+        const displayData = typeof data === 'object' ? JSON.stringify(data, null, 2) : String(data);
+        logElement.innerText = `[${timestamp}] --- Action: ${action} ---\n${displayData}\n\n${logElement.innerText}`;
     }
 
     function clearLogs() {
@@ -291,7 +289,13 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const data = await response.json();
+            const textResponse = await response.text();
+            let data;
+            try {
+                data = JSON.parse(textResponse);
+            } catch (e) {
+                data = { raw_response: textResponse };
+            }
             logResponse(actionName, data);
             return data;
         } catch (error) {
