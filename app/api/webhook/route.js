@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Initialize Supabase Server Client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://vwvsfuvdatdtjlrredvu.supabase.co',
   process.env.SUPABASE_SERVICE_ROLE_KEY || 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU'
@@ -12,7 +11,6 @@ function parseXMLTag(xml, tag) {
   return match ? match[1].trim() : null;
 }
 
-// CRITICAL: Explicit POST method export for Vercel App Router
 export async function POST(request) {
   try {
     const xmlText = await request.text();
@@ -24,16 +22,13 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // 1. Handle outbound call notification or result/ringing state
     if (msgType === 'outbound_notify' || msgType === 'result') {
       await supabase.from('active_calls').upsert({
         tran_id: tranId,
         sid: sid,
         status: msgType === 'result' ? 'ANSWERED' : 'RINGING'
       }, { onConflict: 'tran_id' });
-    } 
-    // 2. Handle CDR (Call Completion & Logging)
-    else if (msgType === 'cdr') {
+    } else if (msgType === 'cdr') {
       await supabase.from('call_logs').insert({
         tran_id: tranId,
         sid: sid,
@@ -49,7 +44,6 @@ export async function POST(request) {
         recording_url: parseXMLTag(xmlText, 'recording_url')
       });
 
-      // Clear from active_calls once completed
       if (tranId) {
         await supabase.from('active_calls').delete().eq('tran_id', tranId);
       }
@@ -62,7 +56,6 @@ export async function POST(request) {
   }
 }
 
-// Optional GET handler so browser/health checks return 200 instead of 405
 export async function GET() {
   return NextResponse.json({ status: 'active', message: 'Webhook endpoint is online and accepting POST requests' });
 }
