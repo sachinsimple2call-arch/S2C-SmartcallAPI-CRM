@@ -46,6 +46,41 @@
             margin-bottom: 20px;
         }
 
+        /* Tab Navigation Styling */
+        .tabs {
+            display: flex;
+            background: #e9ecef;
+            border-radius: 6px;
+            padding: 4px;
+            margin-bottom: 15px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            background: transparent;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+
+        .tab-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
         h2 {
             margin-top: 0;
             font-size: 1.25rem;
@@ -141,114 +176,122 @@
 
 <div class="container">
 
-    <!-- Global API Configuration -->
-    <div class="card full-width">
-        <h2>Global API & Account Configuration</h2>
-        <div class="grid-3">
-            <div class="form-group">
-                <label>API Endpoint URL</label>
-                <input type="text" id="api_url" value="https://conference.simple2call.in/ab_api.php">
-            </div>
-            <div class="form-group">
-                <label>Username (un)</label>
-                <input type="text" id="un" value="sachin_admin">
-            </div>
-            <div class="form-group">
-                <label>Password (pw)</label>
-                <input type="password" id="pw" value="Ashu@7979">
-            </div>
-            <div class="form-group">
-                <label>Server (svr)</label>
-                <input type="text" id="svr" value="conference.simple2call.in">
-            </div>
-            <div class="form-group">
-                <label>Sub-Tag (sb_tag)</label>
-                <input type="text" id="sb_tag" value="TestTag">
-            </div>
-            <div class="form-group">
-                <label>Routed Name</label>
-                <input type="text" id="routed_name" value="NeerajDemo">
+    <!-- Top Navigation Tabs (Dialer vs Config) -->
+    <div class="card full-width" style="padding-bottom: 10px;">
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('dialer')">📞 CTI Dialer & Controls</button>
+            <button class="tab-btn" onclick="switchTab('config')">⚙️ Global API Configuration</button>
+        </div>
+
+        <!-- Tab 1: Global API Configuration -->
+        <div id="tab-config" class="tab-content">
+            <h2>Global API & Account Configuration</h2>
+            <div class="grid-3">
+                <div class="form-group">
+                    <label>API Endpoint URL</label>
+                    <input type="text" id="api_url" value="https://conference.simple2call.in/ab_api.php">
+                </div>
+                <div class="form-group">
+                    <label>Username (un)</label>
+                    <input type="text" id="un" value="sachin_admin">
+                </div>
+                <div class="form-group">
+                    <label>Password (pw)</label>
+                    <input type="password" id="pw" value="Ashu@7979">
+                </div>
+                <div class="form-group">
+                    <label>Server (svr)</label>
+                    <input type="text" id="svr" value="conference.simple2call.in">
+                </div>
+                <div class="form-group">
+                    <label>Sub-Tag (sb_tag)</label>
+                    <input type="text" id="sb_tag" value="TestTag">
+                </div>
+                <div class="form-group">
+                    <label>Routed Name</label>
+                    <input type="text" id="routed_name" value="NeerajDemo">
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Call Initiation -->
-    <div class="card">
-        <h2>1. Click-to-Call Dialer</h2>
+    <!-- Tab 2 / Main View: Dialer & Controls -->
+    <div id="tab-dialer" class="tab-content active full-width" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         
-        <div class="form-group">
-            <label>Agent Number (CLI)</label>
-            <input type="text" id="cli" value="918452080008">
+        <!-- Call Initiation -->
+        <div class="card" style="margin-bottom: 0;">
+            <h2>1. Click-to-Call Dialer</h2>
+            
+            <div class="form-group">
+                <label>Agent Number (CLI)</label>
+                <input type="text" id="cli" value="918452080008">
+            </div>
+
+            <div class="form-group">
+                <label>Customer Phone (digits_1)</label>
+                <input type="text" id="digits_1" value="916359115000">
+            </div>
+
+            <div class="form-group" style="display:none;">
+                <label>Hold Duration (Seconds)</label>
+                <input type="number" id="hold_duration" value="120">
+            </div>
+
+            <div class="action-group">
+                <button onclick="sendAgentCallCustomer()" class="btn-success">Initiate Call</button>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>Customer Phone (digits_1)</label>
-            <input type="text" id="digits_1" value="916359115000">
+        <!-- In-Call Control Panel -->
+        <div class="card" style="margin-bottom: 0;">
+            <h2>2. Active Call Control Panel</h2>
+            
+            <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
+                <label style="color: #856404; font-weight: bold;">Active Call Control SID (Telephony Engine ID):</label>
+                <input type="text" id="active_sid" placeholder="Waiting for telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
+                <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: - | Access #: -</small>
+            </div>
+
+            <!-- Hold Controls -->
+            <label>Hold Controls</label>
+            <div class="grid-2" style="margin-bottom: 15px;">
+                <button class="btn-warning" onclick="sendControl('HoldOn')">Hold On</button>
+                <button class="btn-success" onclick="sendControl('HoldOff')">Hold Off</button>
+            </div>
+
+            <!-- 3rd Party Controls -->
+            <label>3rd Party / Transfer Settings (Auto-Filled Access Number)</label>
+            <div class="grid-2" style="margin-bottom: 8px;">
+                <input type="text" id="third_party_cli" placeholder="Auto-filled Access Number">
+                <input type="text" id="third_party_digits" placeholder="3rd Party Customer Digits" value="19084444455">
+            </div>
+            
+            <div class="grid-2" style="margin-bottom: 15px;">
+                <button onclick="sendDial3rdParty()">Dial 3rd Party</button>
+                <button class="btn-success" onclick="sendControl('3Way')">Bridge 3-Way</button>
+                <button class="btn-warning" onclick="sendControl('Disconnect3rdParty')">Drop 3rd Party</button>
+                <button onclick="sendControl('Transfer')">Transfer & Exit</button>
+            </div>
+
+            <!-- Status & Terminate -->
+            <label>Status & Call Release</label>
+            <div class="grid-3">
+                <button onclick="sendControl('Status')">Get Status</button>
+                <button onclick="sendRefreshControl()">Refresh Logs</button>
+                <button class="btn-danger" onclick="sendControl('Hangup')">Hangup Call</button>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label>Customer Name</label>
-            <input type="text" id="name_1" value="Mittal Patel">
-        </div>
-
-        <div class="form-group" style="display:none;">
-            <label>Hold Duration (Seconds)</label>
-            <input type="number" id="hold_duration" value="120">
-        </div>
-
-        <div class="action-group">
-            <button onclick="sendAgentCallCustomer()" class="btn-success">Initiate Call</button>
-        </div>
     </div>
 
-    <!-- In-Call Control Panel -->
-    <div class="card">
-        <h2>2. Active Call Control Panel</h2>
-        
-        <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
-            <label style="color: #856404; font-weight: bold;">Active Call Control SID (Telephony Engine ID):</label>
-            <input type="text" id="active_sid" placeholder="Waiting for telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
-            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: - | Access Number: -</small>
-        </div>
-
-        <!-- Hold Controls -->
-        <label>Hold Controls</label>
-        <div class="grid-2" style="margin-bottom: 15px;">
-            <button class="btn-warning" onclick="sendControl('HoldOn')">Hold On</button>
-            <button class="btn-success" onclick="sendControl('HoldOff')">Hold Off</button>
-        </div>
-
-        <!-- 3rd Party Controls -->
-        <label>3rd Party / Transfer Settings (CLI Auto-Filled from Access Number)</label>
-        <div class="grid-2" style="margin-bottom: 8px;">
-            <input type="text" id="third_party_cli" placeholder="Auto-filled Access Number">
-            <input type="text" id="third_party_digits" placeholder="3rd Party Customer Digits" value="19084444455">
-        </div>
-        
-        <div class="grid-2" style="margin-bottom: 15px;">
-            <button onclick="sendDial3rdParty()">Dial 3rd Party</button>
-            <button class="btn-success" onclick="sendControl('3Way')">Bridge 3-Way</button>
-            <button class="btn-warning" onclick="sendControl('Disconnect3rdParty')">Drop 3rd Party</button>
-            <button onclick="sendControl('Transfer')">Transfer & Exit</button>
-        </div>
-
-        <!-- Status & Terminate -->
-        <label>Status & Call Release</label>
-        <div class="grid-3">
-            <button onclick="sendControl('Status')">Get Status</button>
-            <button onclick="sendRefreshControl()">Refresh Logs</button>
-            <button class="btn-danger" onclick="sendControl('Hangup')">Hangup Call</button>
-        </div>
-    </div>
-
-    <!-- Output & Logs -->
+    <!-- Output & Realtime Event Logs -->
     <div class="card full-width">
         <h2>
-            API Response Log 
+            Unified API & Event Logs (Active Calls & CDRs)
             <span id="last_action" class="pill">Idle</span>
             <button onclick="clearLogs()" style="width: auto; float: right; padding: 2px 10px; font-size: 0.75rem;">Clear Console</button>
         </h2>
-        <pre id="response_log">// Webhook events, live SIDs, and API responses will appear here in real-time...</pre>
+        <pre id="response_log">// Webhook events, Supabase active_calls sync, CDR completion logs, and API responses will appear here in real-time...</pre>
     </div>
 
 </div>
@@ -259,11 +302,26 @@
     const supabaseKey = 'sb_publishable_L7--J6HSa9X8FLb7SVc5gQ_AYy9zngU';
     const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 
-    let activeTranId = null;   // CRM transaction ID
-    let currentSid = null;     // Live telephony SID used for call control
-    let currentAccessNumber = null; // Access number from init response
+    let activeTranId = null;   
+    let currentSid = null;     
+    let currentAccessNumber = null; 
     let pollInterval = null;
     let realtimeSubscription = null;
+    let cdrSubscription = null;
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('tab-config').style.display = 'none';
+        document.getElementById('tab-dialer').style.display = 'none';
+
+        if (tabName === 'config') {
+            document.getElementById('tab-config').style.display = 'block';
+            event.currentTarget.classList.add('active');
+        } else {
+            document.getElementById('tab-dialer').style.display = 'grid';
+            event.currentTarget.classList.add('active');
+        }
+    }
 
     function generateTranId() {
         return 'NP' + Math.random().toString(36).substring(2, 8) + Date.now().toString().slice(-4);
@@ -311,18 +369,31 @@
         }
         if (accessNum) {
             currentAccessNumber = accessNum;
-            // Automatically populate the 3rd Party CLI input box with the access number!
-            document.getElementById('third_party_cli').value = accessNum;
+            document.getElementById('third_party_cli').value = accessNum; // Auto-fill 3rd party CLI
         }
         document.getElementById('call_status_label').innerText = 
             `Status: ${status || 'ACTIVE'} | CRM Tran ID: ${tranId} | Access #: ${currentAccessNumber || '-'}`;
     }
 
+    // Global listener for CDR (Call Detail Record) events via Supabase Realtime
+    function startGlobalCdrListener() {
+        if (cdrSubscription) supabaseClient.removeChannel(cdrSubscription);
+
+        cdrSubscription = supabaseClient
+            .channel('global_cdr_logs')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'call_logs' },
+                (payload) => {
+                    logResponse("CDR [Call Completed & Logged]", payload.new);
+                }
+            )
+            .subscribe();
+    }
+
     function startSidTracking(tranId) {
         if (pollInterval) clearInterval(pollInterval);
-        if (realtimeSubscription) {
-            supabaseClient.removeChannel(realtimeSubscription);
-        }
+        if (realtimeSubscription) supabaseClient.removeChannel(realtimeSubscription);
 
         realtimeSubscription = supabaseClient
             .channel('active_calls_' + tranId)
@@ -383,13 +454,11 @@
             cli: document.getElementById('cli').value,
             hold_duration: parseInt(document.getElementById('hold_duration').value, 10) || 120,
             dest_count: 1,
-            digits_1: document.getElementById('digits_1').value,
-            name_1: document.getElementById('name_1').value
+            digits_1: document.getElementById('digits_1').value
         };
 
         const res = await makeApiRequest(payload, "agent_call_customer");
         
-        // Capture access_number instantly from agent_call_customer response!
         if (res) {
             if (res.access_number) {
                 currentAccessNumber = res.access_number;
@@ -481,6 +550,11 @@
         };
         await makeApiRequest(payload, "control [Refresh]");
     }
+
+    // Initialize global listeners on load
+    window.onload = () => {
+        startGlobalCdrListener();
+    };
 </script>
 
 </body>
