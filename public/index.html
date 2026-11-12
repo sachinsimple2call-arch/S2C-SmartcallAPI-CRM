@@ -208,7 +208,7 @@
         <div class="form-group" style="background: #fff3cd; padding: 12px; border-radius: 4px; border: 1px solid #ffeeba;">
             <label style="color: #856404; font-weight: bold;">Active Call Control SID (Telephony Engine ID):</label>
             <input type="text" id="active_sid" placeholder="Waiting for telephony SID..." style="font-weight: bold; color: #856404; background: #fff;">
-            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: -</small>
+            <small id="call_status_label" style="color: #856404; display: block; margin-top: 5px;">Status: IDLE | CRM Tran ID: - | Access Number: -</small>
         </div>
 
         <!-- Hold Controls -->
@@ -219,10 +219,10 @@
         </div>
 
         <!-- 3rd Party Controls -->
-        <label>3rd Party / Transfer Settings</label>
+        <label>3rd Party / Transfer Settings (CLI Auto-Filled from Access Number)</label>
         <div class="grid-2" style="margin-bottom: 8px;">
-            <input type="text" id="third_party_cli" placeholder="3rd Party CLI" value="13216930000">
-            <input type="text" id="third_party_digits" placeholder="3rd Party Digits" value="19084444455">
+            <input type="text" id="third_party_cli" placeholder="Auto-filled Access Number">
+            <input type="text" id="third_party_digits" placeholder="3rd Party Customer Digits" value="19084444455">
         </div>
         
         <div class="grid-2" style="margin-bottom: 15px;">
@@ -261,6 +261,7 @@
 
     let activeTranId = null;   // CRM transaction ID
     let currentSid = null;     // Live telephony SID used for call control
+    let currentAccessNumber = null; // Access number from init response
     let pollInterval = null;
     let realtimeSubscription = null;
 
@@ -303,13 +304,18 @@
         }
     }
 
-    function applyActiveSid(sid, status, tranId) {
-        if (!sid) return;
-        currentSid = sid;
-        document.getElementById('active_sid').value = currentSid;
+    function applyActiveSid(sid, status, tranId, accessNum) {
+        if (sid) {
+            currentSid = sid;
+            document.getElementById('active_sid').value = currentSid;
+        }
+        if (accessNum) {
+            currentAccessNumber = accessNum;
+            // Automatically populate the 3rd Party CLI input box with the access number!
+            document.getElementById('third_party_cli').value = accessNum;
+        }
         document.getElementById('call_status_label').innerText = 
-            `Status: ${status || 'ACTIVE'} | CRM Tran ID: ${tranId}`;
-        logResponse("Supabase SID Linked", { tran_id: tranId, sid: currentSid, status: status });
+            `Status: ${status || 'ACTIVE'} | CRM Tran ID: ${tranId} | Access #: ${currentAccessNumber || '-'}`;
     }
 
     function startSidTracking(tranId) {
@@ -325,12 +331,9 @@
                 { event: '*', schema: 'public', table: 'active_calls', filter: `tran_id=eq.${tranId}` },
                 (payload) => {
                     const row = payload.new;
-                    if (row && row.sid) {
-                        applyActiveSid(row.sid, row.status, tranId);
-                        clearInterval(pollInterval);
-                    } else if (row && row.status) {
-                        document.getElementById('call_status_label').innerText = 
-                            `Status: ${row.status} | CRM Tran ID: ${tranId}`;
+                    if (row) {
+                        applyActiveSid(row.sid, row.status, tranId, row.access_number);
+                        if (row.sid) clearInterval(pollInterval);
                     }
                 }
             )
@@ -346,18 +349,13 @@
 
             const { data } = await supabaseClient
                 .from('active_calls')
-                .select('sid, status')
+                .select('sid, status, access_number')
                 .eq('tran_id', tranId)
                 .maybeSingle();
 
             if (data) {
-                if (data.sid) {
-                    applyActiveSid(data.sid, data.status, tranId);
-                    clearInterval(pollInterval);
-                } else if (data.status) {
-                    document.getElementById('call_status_label').innerText = 
-                        `Status: ${data.status} | CRM Tran ID: ${tranId}`;
-                }
+                applyActiveSid(data.sid, data.status, tranId, data.access_number);
+                if (data.sid) clearInterval(pollInterval);
             }
         }, 1000);
     }
@@ -369,7 +367,9 @@
     async function sendAgentCallCustomer() {
         activeTranId = generateTranId();
         currentSid = null; 
+        currentAccessNumber = null;
         document.getElementById('active_sid').value = ''; 
+        document.getElementById('third_party_cli').value = '';
         document.getElementById('call_status_label').innerText = `Status: INITIATING | CRM Tran ID: ${activeTranId}`;
 
         const payload = {
@@ -388,9 +388,18 @@
         };
 
         const res = await makeApiRequest(payload, "agent_call_customer");
-        if (res && res.sid) {
-            applyActiveSid(res.sid, res.status || 'CONNECTED', activeTranId);
+        
+        // Capture access_number instantly from agent_call_customer response!
+        if (res) {
+            if (res.access_number) {
+                currentAccessNumber = res.access_number;
+                document.getElementById('third_party_cli').value = currentAccessNumber;
+            }
+            if (res.sid) {
+                applyActiveSid(res.sid, res.status || 'CONNECTED', activeTranId, res.access_number);
+            }
         }
+        
         startSidTracking(activeTranId);
     }
 
@@ -399,11 +408,11 @@
         if (!controlSid && activeTranId) {
             const { data } = await supabaseClient
                 .from('active_calls')
-                .select('sid, status')
+                .select('sid, status, access_number')
                 .eq('tran_id', activeTranId)
                 .maybeSingle();
-            if (data && data.sid) {
-                applyActiveSid(data.sid, data.status, activeTranId);
+            if (data) {
+                applyActiveSid(data.sid, data.status, activeTranId, data.access_number);
                 controlSid = data.sid;
             }
         }
@@ -413,7 +422,7 @@
     async function sendControl(commandName) {
         const controlSid = await getResolvedSid();
         if (!controlSid) {
-            alert("No telephony SID found yet in Supabase active_calls! Wait a second for the webhook to sync.");
+            alert("No telephony SID found yet in Supabase active_calls!");
             return;
         }
 
@@ -435,6 +444,12 @@
             return;
         }
 
+        const cliValue = document.getElementById('third_party_cli').value.trim() || currentAccessNumber;
+        if (!cliValue) {
+            alert("3rd Party CLI (Access Number) is missing!");
+            return;
+        }
+
         const payload = {
             msg_type: "control",
             tran_id: controlSid,
@@ -442,7 +457,7 @@
             pw: document.getElementById('pw').value,
             svr: document.getElementById('svr').value,
             command: "Dial3rdParty",
-            cli: document.getElementById('third_party_cli').value,
+            cli: cliValue,
             digits: document.getElementById('third_party_digits').value
         };
         await makeApiRequest(payload, "control [Dial3rdParty]");
