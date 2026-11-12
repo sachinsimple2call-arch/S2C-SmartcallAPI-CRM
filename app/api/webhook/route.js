@@ -14,6 +14,8 @@ function parseXMLTag(xml, tag) {
 export async function POST(request) {
   try {
     const xmlText = await request.text();
+    console.log('Incoming Webhook XML:', xmlText);
+
     const msgType = parseXMLTag(xmlText, 'msg_type');
     const tranId = parseXMLTag(xmlText, 'tran_id');
     const sid = parseXMLTag(xmlText, 'sid');
@@ -23,18 +25,20 @@ export async function POST(request) {
       return NextResponse.json({ status: 'error', message: 'Missing msg_type' }, { status: 400 });
     }
 
-    // 1. Handle outbound call notification, acknowledgement, or result state
+    // 1. Handle live call notifications and results
     if (msgType === 'agent_call_customer.ack' || msgType === 'outbound_notify' || msgType === 'result') {
-      await supabase.from('active_calls').upsert({
+      const { error } = await supabase.from('active_calls').upsert({
         tran_id: tranId,
         sid: sid || null,
         access_number: accessNumber || null,
         status: msgType === 'result' ? 'ANSWERED' : 'RINGING'
       }, { onConflict: 'tran_id' });
+
+      if (error) console.error('Supabase active_calls upsert error:', error);
     } 
     // 2. Handle CDR (Call Completion & Logging)
-    else if (msgType === 'cdr') {
-      await supabase.from('call_logs').insert({
+    else if (msgType === 'cdr' || msgType === 'hangup') {
+      const { error } = await supabase.from('call_logs').insert({
         tran_id: tranId,
         sid: sid,
         start_time: parseXMLTag(xmlText, 'start_time'),
@@ -45,10 +49,13 @@ export async function POST(request) {
         status: parseXMLTag(xmlText, 'status'),
         duration: parseInt(parseXMLTag(xmlText, 'duration') || '0', 10),
         charge: parseFloat(parseXMLTag(xmlText, 'charge') || '0.00'),
-        hangup_reason: parseXMLTag(xmlText, 'hangup'),
+        hangup_reason: parseXMLTag(xmlText, 'hangup') || parseXMLTag(xmlText, 'hangup_reason'),
         recording_url: parseXMLTag(xmlText, 'recording_url')
       });
 
+      if (error) console.error('Supabase call_logs insert error:', error);
+
+      // Clean up active call tracker
       if (tranId) {
         await supabase.from('active_calls').delete().eq('tran_id', tranId);
       }
@@ -56,7 +63,7 @@ export async function POST(request) {
 
     return NextResponse.json({ status: 'success', received_msg_type: msgType });
   } catch (error) {
-    console.error('Webhook Error:', error);
+    console.error('Webhook Fatal Error:', error);
     return NextResponse.json({ status: 'error', message: error.message }, { status: 500 });
   }
 }
